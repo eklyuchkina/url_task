@@ -17,10 +17,10 @@ from jose import jwt
 
 from db import Base, engine, SessionLocal, get_db, User, Link
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = os.getenv("REDIS_URL", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-redis_client = redis.from_url(REDIS_URL)
+redis_client = redis.from_url(REDIS_URL) if REDIS_URL else None
 
 
 class UserCreate(BaseModel):
@@ -39,7 +39,8 @@ class LinkUpdate(BaseModel):
 
 
 def hash_password(password):
-    return pwd_context.hash(password)
+    p = str(password).encode("utf-8")[:72].decode("utf-8", errors="replace")
+    return pwd_context.hash(p)
 
 
 def check_password(plain, hashed):
@@ -64,16 +65,20 @@ def get_short_code():
 
 
 def cache_get(key):
+    if not redis_client:
+        return None
     val = redis_client.get(key)
     return json.loads(val) if val else None
 
 
 def cache_set(key, val, ttl=300):
-    redis_client.setex(key, ttl, json.dumps(val, default=str))
+    if redis_client:
+        redis_client.setex(key, ttl, json.dumps(val, default=str))
 
 
 def cache_del(key):
-    redis_client.delete(key)
+    if redis_client:
+        redis_client.delete(key)
 
 
 async def delete_expired():
