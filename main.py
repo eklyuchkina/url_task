@@ -12,14 +12,13 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from passlib.context import CryptContext
+import bcrypt
 from jose import jwt
 
 from db import Base, engine, SessionLocal, get_db, User, Link
 
 REDIS_URL = os.getenv("REDIS_URL", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "secret")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 redis_client = redis.from_url(REDIS_URL) if REDIS_URL else None
 
 
@@ -39,12 +38,13 @@ class LinkUpdate(BaseModel):
 
 
 def hash_password(password):
-    p = str(password).encode("utf-8")[:72].decode("utf-8", errors="replace")
-    return pwd_context.hash(p)
+    p = str(password).encode("utf-8")[:72]
+    return bcrypt.hashpw(p, bcrypt.gensalt()).decode("utf-8")
 
 
 def check_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
+    p = str(plain).encode("utf-8")[:72]
+    return bcrypt.checkpw(p, hashed.encode("utf-8"))
 
 
 def make_token(username):
